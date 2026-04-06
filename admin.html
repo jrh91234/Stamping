@@ -24,7 +24,7 @@
   <body>
     <main class="container">
       <h1 style="margin-top:0">Admin Panel</h1>
-      <p class="helper">หน้านี้ใช้จัดการค่าระบบ เช่น URL ของ Google Apps Script Web App</p>
+      <p class="helper">หน้านี้ใช้จัดการค่าระบบ เช่น URL ของ Google Apps Script Web App (ตั้งค่าเริ่มต้นให้แล้ว)</p>
 
       <section class="card">
         <h2 style="margin-top:0">ตั้งค่า Endpoint</h2>
@@ -51,6 +51,7 @@
 
     <script>
       const API_URL_KEY = "oee_api_url";
+      const DEFAULT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxT-lGycpT-sR7MK6U2Vns05C2MVzoUIIDtjpves4GVFfFQWc25wZaqCI96DCG3WcsU/exec";
       const els = {
         apiUrl: document.getElementById("apiUrl"),
         saveBtn: document.getElementById("saveBtn"),
@@ -62,10 +63,11 @@
       const previewScript = `ดูโค้ดเต็มในไฟล์ scr/backend.gs
 
 วิธีใช้งานย่อ:
-1) สร้าง Google Sheet และชีทชื่อ records
+1) สร้างชีท products_master พร้อมคอลัมน์ product_name, part_no, machine
 2) วางโค้ด backend.gs ใน Apps Script
 3) Deploy as Web App
-4) นำ URL มาใส่ในหน้านี้`;
+4) นำ URL มาใส่ในหน้านี้
+5) หน้า Dashboard จะเรียก action=options เพื่อโหลด dropdown`;
 
       function setStatus(text, error = false) {
         els.status.textContent = text;
@@ -73,7 +75,7 @@
       }
 
       function init() {
-        els.apiUrl.value = localStorage.getItem(API_URL_KEY) || "";
+        els.apiUrl.value = localStorage.getItem(API_URL_KEY) || DEFAULT_ENDPOINT;
         els.gsPreview.textContent = previewScript;
       }
 
