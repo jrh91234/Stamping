@@ -1,9 +1,9 @@
 /**
- * Google Apps Script backend for OEE web app.
+ * Google Apps Script backend for production dashboard.
  *
  * Required sheets:
- * 1) records (for production/OEE logs)
- * 2) products_master (or fallback to first sheet with headers product_name,machine)
+ * 1) records
+ * 2) products_master (fallback: first sheet with headers product_name,machine)
  */
 
 const RECORD_SHEET_NAME = 'records';
@@ -12,56 +12,38 @@ const MASTER_SHEET_NAME = 'products_master';
 const RECORD_HEADERS = [
   'date',
   'shift',
+  'timeSlot',
   'line',
   'machine',
   'productName',
   'productionQty',
-  'totalCount',
-  'plannedMinutes',
-  'downtimeMinutes',
-  'goodCount',
-  'idealCycleTime',
   'notes',
 ];
 
 function doGet(e) {
   const action = (e && e.parameter && e.parameter.action) || '';
-
-  if (action === 'list') {
-    return jsonOutput_({ records: listRecords_() });
-  }
-
-  if (action === 'options') {
-    return jsonOutput_(getDropdownOptions_());
-  }
-
+  if (action === 'list') return jsonOutput_({ records: listRecords_() });
+  if (action === 'options') return jsonOutput_(getDropdownOptions_());
   return jsonOutput_({ error: 'Unknown action. Use ?action=list or ?action=options' });
 }
 
 function doPost(e) {
   try {
     const payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
-    if (payload.action !== 'create') {
-      return jsonOutput_({ error: 'Unknown action. Use action=create' });
-    }
+    if (payload.action !== 'create') return jsonOutput_({ error: 'Unknown action. Use action=create' });
 
     validatePayload_(payload);
 
     const sheet = getOrCreateRecordSheet_();
     ensureHeader_(sheet, RECORD_HEADERS);
-
     sheet.appendRow([
       payload.date,
       payload.shift,
+      payload.timeSlot,
       payload.line,
       payload.machine,
       payload.productName,
       Number(payload.productionQty),
-      Number(payload.totalCount ?? payload.productionQty),
-      Number(payload.plannedMinutes),
-      Number(payload.downtimeMinutes),
-      Number(payload.goodCount),
-      Number(payload.idealCycleTime),
       payload.notes || '',
     ]);
 
@@ -74,10 +56,8 @@ function doPost(e) {
 function listRecords_() {
   const sheet = getOrCreateRecordSheet_();
   ensureHeader_(sheet, RECORD_HEADERS);
-
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) return [];
-
   const headers = values[0];
   return values.slice(1).map((row) => {
     const obj = {};
@@ -107,7 +87,6 @@ function getDropdownOptions_() {
   const machines = Array.from(machineSet).sort();
   const products = Array.from(productSet).sort();
   const mapped = {};
-
   Object.keys(productsByMachine).forEach((machine) => {
     mapped[machine] = Array.from(productsByMachine[machine]).sort();
   });
@@ -120,7 +99,6 @@ function listMasterRows_() {
   let sheet = ss.getSheetByName(MASTER_SHEET_NAME);
 
   if (!sheet) {
-    // Fallback: find first sheet that has both product_name and machine columns.
     const found = ss.getSheets().find((s) => {
       const headers = s.getRange(1, 1, 1, Math.max(3, s.getLastColumn())).getValues()[0].map(String);
       return headers.includes('product_name') && headers.includes('machine');
@@ -133,8 +111,8 @@ function listMasterRows_() {
 
   const values = sheet.getDataRange().getValues();
   if (values.length <= 1) return [];
-
   const headers = values[0].map((h) => String(h).trim());
+
   return values.slice(1).map((row) => {
     const obj = {};
     headers.forEach((h, i) => (obj[h] = row[i]));
@@ -152,30 +130,16 @@ function getOrCreateRecordSheet_() {
 function ensureHeader_(sheet, expectedHeaders) {
   const current = sheet.getRange(1, 1, 1, expectedHeaders.length).getValues()[0];
   const empty = current.every((cell) => String(cell).trim() === '');
-
   if (empty) {
     sheet.getRange(1, 1, 1, expectedHeaders.length).setValues([expectedHeaders]);
     return;
   }
-
   const same = expectedHeaders.every((header, i) => String(current[i] || '') === header);
   if (!same) sheet.getRange(1, 1, 1, expectedHeaders.length).setValues([expectedHeaders]);
 }
 
 function validatePayload_(payload) {
-  const required = [
-    'date',
-    'shift',
-    'line',
-    'machine',
-    'productName',
-    'productionQty',
-    'plannedMinutes',
-    'downtimeMinutes',
-    'goodCount',
-    'idealCycleTime',
-  ];
-
+  const required = ['date', 'shift', 'timeSlot', 'line', 'machine', 'productName', 'productionQty'];
   required.forEach((key) => {
     if (payload[key] === undefined || payload[key] === null || payload[key] === '') {
       throw new Error('Missing required field: ' + key);
@@ -183,17 +147,7 @@ function validatePayload_(payload) {
   });
 
   const qty = Number(payload.productionQty);
-  const planned = Number(payload.plannedMinutes);
-  const down = Number(payload.downtimeMinutes);
-  const good = Number(payload.goodCount);
-  const ict = Number(payload.idealCycleTime);
-
   if (!Number.isFinite(qty) || qty < 0) throw new Error('productionQty must be >= 0');
-  if (!Number.isFinite(planned) || planned <= 0) throw new Error('plannedMinutes must be > 0');
-  if (!Number.isFinite(down) || down < 0) throw new Error('downtimeMinutes must be >= 0');
-  if (!Number.isFinite(good) || good < 0) throw new Error('goodCount must be >= 0');
-  if (!Number.isFinite(ict) || ict < 0) throw new Error('idealCycleTime must be >= 0');
-  if (good > qty) throw new Error('goodCount must be <= productionQty');
 }
 
 function jsonOutput_(obj) {
