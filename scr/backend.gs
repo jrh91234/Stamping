@@ -29,7 +29,7 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    const payload = JSON.parse((e && e.postData && e.postData.contents) || '{}');
+    const payload = parsePayload_(e);
     if (payload.action !== 'create') return jsonOutput_({ error: 'Unknown action. Use action=create' });
 
     validatePayload_(payload);
@@ -50,6 +50,19 @@ function doPost(e) {
     return jsonOutput_({ ok: true });
   } catch (error) {
     return jsonOutput_({ error: error.message || String(error) });
+  }
+}
+
+
+function parsePayload_(e) {
+  const params = (e && e.parameter) || {};
+  if (Object.keys(params).length) return params;
+
+  const raw = (e && e.postData && e.postData.contents) || '{}';
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    return {};
   }
 }
 

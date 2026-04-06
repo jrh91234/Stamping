@@ -160,7 +160,11 @@
       }
 
       async function createRecord(payload) {
-        const res = await fetch(state.endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "create", ...payload }) });
+        const body = new URLSearchParams({ action: "create", ...payload });
+        const res = await fetch(state.endpoint, {
+          method: "POST",
+          body,
+        });
         if (!res.ok) throw new Error("บันทึกข้อมูลไม่สำเร็จ");
         await loadRecords();
       }
