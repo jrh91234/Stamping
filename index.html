@@ -1,1 +1,623 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OEE 2026 Web App (Google Sheets)</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f7fafc;
+        --surface: #ffffff;
+        --muted: #4a5568;
+        --text: #1a202c;
+        --primary: #2563eb;
+        --border: #e2e8f0;
+        --ok: #059669;
+        --warn: #d97706;
+      }
 
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Inter", "Segoe UI", Tahoma, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 24px;
+      }
+
+      h1,
+      h2,
+      h3 {
+        margin: 0;
+      }
+
+      .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .header p {
+        margin: 6px 0 0;
+        color: var(--muted);
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: 1.1fr 1fr;
+        gap: 18px;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 2px 10px rgb(0 0 0 / 4%);
+      }
+
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+
+      .kpi {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 12px;
+      }
+
+      .kpi .label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .kpi .value {
+        margin-top: 6px;
+        font-size: 26px;
+        font-weight: 700;
+      }
+
+      .kpi .value.ok {
+        color: var(--ok);
+      }
+
+      .kpi .value.warn {
+        color: var(--warn);
+      }
+
+      form {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
+
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .field.full {
+        grid-column: span 2;
+      }
+
+      label {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      input,
+      select,
+      button,
+      textarea {
+        font: inherit;
+      }
+
+      input,
+      select,
+      textarea {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 10px;
+        background: #fff;
+      }
+
+      .actions {
+        display: flex;
+        gap: 8px;
+        grid-column: span 2;
+      }
+
+      button {
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 10px 14px;
+        cursor: pointer;
+      }
+
+      .btn-primary {
+        background: var(--primary);
+        color: #fff;
+      }
+
+      .btn-secondary {
+        border-color: var(--border);
+        background: #fff;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        font-size: 13px;
+        border-bottom: 1px solid var(--border);
+        padding: 8px 6px;
+        text-align: left;
+      }
+
+      th {
+        color: var(--muted);
+      }
+
+      .status {
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      .endpoint {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .helper {
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      @media (max-width: 980px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .kpi-grid {
+          grid-template-columns: repeat(2, 1fr);
+        }
+      }
+
+      @media (max-width: 680px) {
+        form {
+          grid-template-columns: 1fr;
+        }
+
+        .field.full,
+        .actions {
+          grid-column: auto;
+        }
+
+        .kpi-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <section class="header">
+        <div>
+          <h1>OEE 2026 Dashboard</h1>
+          <p>
+            ออกแบบเพื่อใช้ข้อมูลจาก Google Sheets (แทน Database) สำหรับบันทึกและวิเคราะห์
+            OEE รายวัน
+          </p>
+        </div>
+        <div class="status" id="status">พร้อมใช้งาน</div>
+      </section>
+
+      <section class="card">
+        <h2>ตั้งค่า Google Apps Script Endpoint</h2>
+        <div class="endpoint">
+          <input
+            id="apiUrl"
+            type="url"
+            placeholder="วาง URL ของ Google Apps Script Web App"
+          />
+          <button class="btn-secondary" id="saveEndpointBtn">บันทึก URL</button>
+        </div>
+        <p class="helper">
+          ตัวอย่าง endpoint:
+          https://script.google.com/macros/s/AKfycb.../exec<br />
+          รองรับ: GET /records, POST /records
+        </p>
+      </section>
+
+
+      <section class="card" style="margin-top: 18px">
+        <h2>ตัวอย่าง Google Apps Script (Backend)</h2>
+        <p class="helper">สร้าง Script ใหม่ แล้วผูกกับ Google Sheet จากนั้น Deploy เป็น Web App (Execute as: Me, Access: Anyone with link)</p>
+        <pre style="background:#0f172a;color:#e2e8f0;padding:12px;border-radius:10px;overflow:auto;font-size:12px">
+function doGet(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('records');
+  const action = e.parameter.action;
+
+  if (action === 'list') {
+    const values = sheet.getDataRange().getValues();
+    const headers = values.shift();
+    const records = values.map((row) => Object.fromEntries(headers.map((h, i) => [h, row[i]])));
+    return ContentService.createTextOutput(JSON.stringify({ records })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({ error: 'Unknown action' })).setMimeType(ContentService.MimeType.JSON);
+}
+
+function doPost(e) {
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName('records');
+  const payload = JSON.parse(e.postData.contents || '{}');
+
+  if (payload.action === 'create') {
+    sheet.appendRow([
+      payload.date,
+      payload.shift,
+      payload.line,
+      payload.machine,
+      payload.plannedMinutes,
+      payload.downtimeMinutes,
+      payload.totalCount,
+      payload.goodCount,
+      payload.idealCycleTime,
+      payload.notes || ''
+    ]);
+
+    return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+  }
+
+  return ContentService.createTextOutput(JSON.stringify({ error: 'Unknown action' })).setMimeType(ContentService.MimeType.JSON);
+}
+        </pre>
+      </section>
+
+      <section class="grid" style="margin-top: 18px">
+        <article class="card">
+          <h2>บันทึกข้อมูลผลิต</h2>
+          <p class="helper">ใช้โครงข้อมูลมาตรฐาน OEE: Availability, Performance, Quality</p>
+
+          <form id="oeeForm">
+            <div class="field">
+              <label for="date">วันที่</label>
+              <input id="date" name="date" type="date" required />
+            </div>
+
+            <div class="field">
+              <label for="shift">กะ</label>
+              <select id="shift" name="shift" required>
+                <option value="Day">Day</option>
+                <option value="Night">Night</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="line">ไลน์การผลิต</label>
+              <input id="line" name="line" type="text" placeholder="Line A" required />
+            </div>
+
+            <div class="field">
+              <label for="machine">เครื่องจักร</label>
+              <input id="machine" name="machine" type="text" placeholder="Press-01" required />
+            </div>
+
+            <div class="field">
+              <label for="plannedMinutes">Planned Production Time (min)</label>
+              <input id="plannedMinutes" name="plannedMinutes" type="number" min="1" required />
+            </div>
+
+            <div class="field">
+              <label for="downtimeMinutes">Downtime (min)</label>
+              <input id="downtimeMinutes" name="downtimeMinutes" type="number" min="0" required />
+            </div>
+
+            <div class="field">
+              <label for="totalCount">Total Count</label>
+              <input id="totalCount" name="totalCount" type="number" min="0" required />
+            </div>
+
+            <div class="field">
+              <label for="goodCount">Good Count</label>
+              <input id="goodCount" name="goodCount" type="number" min="0" required />
+            </div>
+
+            <div class="field">
+              <label for="idealCycleTime">Ideal Cycle Time (min/pc)</label>
+              <input id="idealCycleTime" name="idealCycleTime" type="number" min="0" step="0.0001" required />
+            </div>
+
+            <div class="field full">
+              <label for="notes">หมายเหตุ</label>
+              <textarea id="notes" name="notes" rows="2" placeholder="บันทึกเหตุหยุดเครื่อง / ปัญหาคุณภาพ"></textarea>
+            </div>
+
+            <div class="actions">
+              <button class="btn-primary" type="submit">บันทึกลง Google Sheet</button>
+              <button class="btn-secondary" type="button" id="loadBtn">โหลดข้อมูลล่าสุด</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2>OEE KPI (Average)</h2>
+          <div class="kpi-grid" style="margin-top: 10px">
+            <div class="kpi">
+              <div class="label">Availability</div>
+              <div class="value" id="availabilityKpi">0.00%</div>
+            </div>
+            <div class="kpi">
+              <div class="label">Performance</div>
+              <div class="value" id="performanceKpi">0.00%</div>
+            </div>
+            <div class="kpi">
+              <div class="label">Quality</div>
+              <div class="value" id="qualityKpi">0.00%</div>
+            </div>
+            <div class="kpi">
+              <div class="label">OEE</div>
+              <div class="value" id="oeeKpi">0.00%</div>
+            </div>
+          </div>
+
+          <h3 style="margin: 16px 0 8px">ข้อมูลล่าสุด</h3>
+          <div style="overflow-x: auto">
+            <table>
+              <thead>
+                <tr>
+                  <th>วันที่</th>
+                  <th>กะ</th>
+                  <th>Line</th>
+                  <th>Machine</th>
+                  <th>A</th>
+                  <th>P</th>
+                  <th>Q</th>
+                  <th>OEE</th>
+                </tr>
+              </thead>
+              <tbody id="recordsBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const defaultState = {
+        endpoint: localStorage.getItem("oee_api_url") || "",
+        records: [],
+      };
+
+      const state = { ...defaultState };
+
+      const els = {
+        status: document.getElementById("status"),
+        apiUrl: document.getElementById("apiUrl"),
+        saveEndpointBtn: document.getElementById("saveEndpointBtn"),
+        oeeForm: document.getElementById("oeeForm"),
+        loadBtn: document.getElementById("loadBtn"),
+        recordsBody: document.getElementById("recordsBody"),
+        availabilityKpi: document.getElementById("availabilityKpi"),
+        performanceKpi: document.getElementById("performanceKpi"),
+        qualityKpi: document.getElementById("qualityKpi"),
+        oeeKpi: document.getElementById("oeeKpi"),
+      };
+
+      function setStatus(message, kind = "info") {
+        els.status.textContent = message;
+        els.status.style.color = kind === "error" ? "#dc2626" : "#4a5568";
+      }
+
+      function toPercent(value) {
+        return `${(Number(value || 0) * 100).toFixed(2)}%`;
+      }
+
+      function safeDivide(numerator, denominator) {
+        if (!denominator || Number(denominator) === 0) return 0;
+        return Number(numerator) / Number(denominator);
+      }
+
+      function computeKpi(record) {
+        const runTime = Number(record.plannedMinutes) - Number(record.downtimeMinutes);
+        const availability = safeDivide(runTime, record.plannedMinutes);
+        const performance = safeDivide(
+          Number(record.idealCycleTime) * Number(record.totalCount),
+          runTime
+        );
+        const quality = safeDivide(record.goodCount, record.totalCount);
+        const oee = availability * performance * quality;
+
+        return { availability, performance, quality, oee };
+      }
+
+      function computeAverages(records) {
+        if (!records.length) {
+          return { availability: 0, performance: 0, quality: 0, oee: 0 };
+        }
+
+        const sums = records.reduce(
+          (acc, row) => {
+            const kpi = computeKpi(row);
+            acc.availability += kpi.availability;
+            acc.performance += kpi.performance;
+            acc.quality += kpi.quality;
+            acc.oee += kpi.oee;
+            return acc;
+          },
+          { availability: 0, performance: 0, quality: 0, oee: 0 }
+        );
+
+        return {
+          availability: sums.availability / records.length,
+          performance: sums.performance / records.length,
+          quality: sums.quality / records.length,
+          oee: sums.oee / records.length,
+        };
+      }
+
+      function renderKpi() {
+        const avg = computeAverages(state.records);
+
+        els.availabilityKpi.textContent = toPercent(avg.availability);
+        els.performanceKpi.textContent = toPercent(avg.performance);
+        els.qualityKpi.textContent = toPercent(avg.quality);
+        els.oeeKpi.textContent = toPercent(avg.oee);
+
+        els.oeeKpi.className = `value ${avg.oee >= 0.8 ? "ok" : "warn"}`;
+      }
+
+      function renderTable() {
+        if (!state.records.length) {
+          els.recordsBody.innerHTML =
+            '<tr><td colspan="8" style="text-align:center;color:#64748b">ยังไม่มีข้อมูล</td></tr>';
+          renderKpi();
+          return;
+        }
+
+        els.recordsBody.innerHTML = state.records
+          .slice(0, 30)
+          .map((row) => {
+            const { availability, performance, quality, oee } = computeKpi(row);
+            return `
+              <tr>
+                <td>${row.date || ""}</td>
+                <td>${row.shift || ""}</td>
+                <td>${row.line || ""}</td>
+                <td>${row.machine || ""}</td>
+                <td>${toPercent(availability)}</td>
+                <td>${toPercent(performance)}</td>
+                <td>${toPercent(quality)}</td>
+                <td>${toPercent(oee)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+
+        renderKpi();
+      }
+
+      async function fetchRecords() {
+        if (!state.endpoint) {
+          setStatus("กรุณาตั้งค่า endpoint ก่อน", "error");
+          return;
+        }
+
+        setStatus("กำลังโหลดข้อมูล...");
+        const url = new URL(state.endpoint);
+        url.searchParams.set("action", "list");
+
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+
+        const data = await res.json();
+        state.records = Array.isArray(data.records) ? data.records : [];
+        renderTable();
+        setStatus(`โหลดสำเร็จ ${state.records.length} รายการ`);
+      }
+
+      async function createRecord(payload) {
+        if (!state.endpoint) {
+          setStatus("กรุณาตั้งค่า endpoint ก่อน", "error");
+          return;
+        }
+
+        setStatus("กำลังบันทึกข้อมูล...");
+        const res = await fetch(state.endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "create", ...payload }),
+        });
+
+        if (!res.ok) throw new Error("บันทึกข้อมูลไม่สำเร็จ");
+
+        await fetchRecords();
+        setStatus("บันทึกข้อมูลสำเร็จ");
+      }
+
+      function serializeForm(formElement) {
+        const formData = new FormData(formElement);
+        const numericKeys = [
+          "plannedMinutes",
+          "downtimeMinutes",
+          "totalCount",
+          "goodCount",
+          "idealCycleTime",
+        ];
+
+        const payload = Object.fromEntries(formData.entries());
+        numericKeys.forEach((key) => {
+          payload[key] = Number(payload[key] || 0);
+        });
+
+        if (payload.goodCount > payload.totalCount) {
+          throw new Error("Good Count ต้องไม่มากกว่า Total Count");
+        }
+
+        return payload;
+      }
+
+      els.saveEndpointBtn.addEventListener("click", () => {
+        const endpoint = els.apiUrl.value.trim();
+        if (!endpoint) {
+          setStatus("กรุณาระบุ endpoint", "error");
+          return;
+        }
+
+        localStorage.setItem("oee_api_url", endpoint);
+        state.endpoint = endpoint;
+        setStatus("บันทึก endpoint แล้ว");
+      });
+
+      els.loadBtn.addEventListener("click", async () => {
+        try {
+          await fetchRecords();
+        } catch (error) {
+          setStatus(error.message, "error");
+        }
+      });
+
+      els.oeeForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+
+        try {
+          const payload = serializeForm(event.currentTarget);
+          await createRecord(payload);
+          event.currentTarget.reset();
+        } catch (error) {
+          setStatus(error.message, "error");
+        }
+      });
+
+      function init() {
+        els.apiUrl.value = state.endpoint;
+        renderTable();
+
+        const dateEl = document.getElementById("date");
+        dateEl.valueAsDate = new Date();
+      }
+
+      init();
+    </script>
+  </body>
+</html>
