@@ -1,1 +1,205 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Production Dashboard</title>
+    <style>
+      :root { --bg:#f8fafc; --surface:#fff; --text:#0f172a; --muted:#475569; --border:#e2e8f0; --primary:#2563eb; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+      .container { max-width: 1150px; margin: 0 auto; padding: 24px; }
+      .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
+      .topbar a { color: var(--primary); text-decoration: none; }
+      .status { font-size:13px; color:var(--muted); }
+      .layout { display:grid; grid-template-columns:1.1fr 1fr; gap:16px; }
+      .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
+      .helper { color: var(--muted); font-size:12px; }
+      form { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+      .field { display:flex; flex-direction:column; gap:6px; }
+      .field.full { grid-column: span 2; }
+      label { color:var(--muted); font-size:12px; }
+      input, select, textarea, button { font:inherit; }
+      input, select, textarea { border:1px solid var(--border); border-radius:8px; padding:9px 10px; }
+      textarea { min-height:72px; }
+      .actions { display:flex; gap:8px; grid-column:span 2; }
+      button { border:1px solid transparent; border-radius:8px; padding:10px 14px; cursor:pointer; }
+      .btn-primary { background: var(--primary); color:#fff; }
+      .btn-secondary { border-color: var(--border); background:#fff; }
+      .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:8px; }
+      .kpi { border:1px solid var(--border); border-radius:10px; padding:10px; }
+      .kpi .label { color: var(--muted); font-size:12px; }
+      .kpi .value { font-size:24px; font-weight:700; margin-top:4px; }
+      table { width:100%; border-collapse:collapse; }
+      th, td { border-bottom:1px solid var(--border); padding:8px 6px; font-size:13px; text-align:left; }
+      th { color: var(--muted); }
+      @media (max-width:980px) { .layout { grid-template-columns:1fr; } .kpis { grid-template-columns:repeat(2,1fr);} }
+      @media (max-width:640px) { form { grid-template-columns:1fr; } .field.full,.actions { grid-column:auto; } .kpis { grid-template-columns:1fr; } }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <section class="topbar">
+        <div>
+          <h1 style="margin:0">Production Dashboard</h1>
+          <div class="helper">บันทึกข้อมูลการผลิตจาก Google Sheets</div>
+        </div>
+        <a href="admin.html">ไปหน้า Admin Panel</a>
+      </section>
 
+      <div id="status" class="status">พร้อมใช้งาน</div>
+
+      <section class="layout" style="margin-top: 10px">
+        <article class="card">
+          <h2 style="margin-top:0">บันทึกข้อมูลผลิต</h2>
+          <p class="helper">Dropdown เครื่องจักร/ชื่อผลิตภัณฑ์ดึงจาก Google Sheet</p>
+          <form id="form">
+            <div class="field"><label for="date">วันที่</label><input id="date" name="date" type="date" required /></div>
+            <div class="field"><label for="shift">กะ</label><select id="shift" name="shift" required><option value="Day">Day</option><option value="Night">Night</option></select></div>
+            <div class="field"><label for="timeSlot">ช่วงเวลา</label><select id="timeSlot" name="timeSlot" required></select></div>
+            <div class="field"><label for="line">Line</label><input id="line" name="line" placeholder="Line A" required /></div>
+            <div class="field"><label for="machine">เครื่องจักร</label><select id="machine" name="machine" required><option value="">-- เลือกเครื่องจักร --</option></select></div>
+            <div class="field"><label for="productName">ชื่อผลิตภัณฑ์</label><select id="productName" name="productName" required><option value="">-- เลือกผลิตภัณฑ์ --</option></select></div>
+            <div class="field"><label for="productionQty">ยอดผลิต</label><input id="productionQty" name="productionQty" type="number" min="0" required /></div>
+            <div class="field full"><label for="notes">หมายเหตุ</label><textarea id="notes" name="notes"></textarea></div>
+            <div class="actions">
+              <button type="submit" class="btn-primary">บันทึกข้อมูล</button>
+              <button type="button" class="btn-secondary" id="loadBtn">โหลดข้อมูลล่าสุด</button>
+              <button type="button" class="btn-secondary" id="syncOptionsBtn">รีเฟรช Dropdown</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2 style="margin-top:0">Summary</h2>
+          <div class="kpis">
+            <div class="kpi"><div class="label">Records</div><div class="value" id="recordsKpi">0</div></div>
+            <div class="kpi"><div class="label">Total Qty</div><div class="value" id="totalQtyKpi">0</div></div>
+            <div class="kpi"><div class="label">Avg Qty</div><div class="value" id="avgQtyKpi">0</div></div>
+            <div class="kpi"><div class="label">Machines</div><div class="value" id="machineCountKpi">0</div></div>
+          </div>
+
+          <h3 style="margin:14px 0 8px">ข้อมูลล่าสุด</h3>
+          <div style="overflow:auto">
+            <table>
+              <thead><tr><th>Date</th><th>Time</th><th>Machine</th><th>Product</th><th>Qty</th><th>Shift</th></tr></thead>
+              <tbody id="recordsBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const API_URL_KEY = "oee_api_url";
+      const DEFAULT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxT-lGycpT-sR7MK6U2Vns05C2MVzoUIIDtjpves4GVFfFQWc25wZaqCI96DCG3WcsU/exec";
+      const TIME_SLOTS = [
+        "08:00-09:00","09:00-10:00","10:00-11:00","11:00-12:00","12:00-13:00","13:00-14:00",
+        "14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00 OT","18:00-19:00 OT","19:00-20:00 OT",
+        "20:00-21:00","21:00-22:00","22:00-23:00","23:00-00:00","00:00-01:00","01:00-02:00",
+        "02:00-03:00","04:00-05:00","05:00-06:00 OT","06:00-07:00 OT","07:00-08:00 OT"
+      ];
+
+      const state = { endpoint: localStorage.getItem(API_URL_KEY) || DEFAULT_ENDPOINT, records: [], options: { machines: [], products: [], productsByMachine: {} } };
+      const els = {
+        status: document.getElementById("status"), form: document.getElementById("form"), loadBtn: document.getElementById("loadBtn"),
+        syncOptionsBtn: document.getElementById("syncOptionsBtn"), machine: document.getElementById("machine"), productName: document.getElementById("productName"),
+        timeSlot: document.getElementById("timeSlot"), recordsBody: document.getElementById("recordsBody"),
+        recordsKpi: document.getElementById("recordsKpi"), totalQtyKpi: document.getElementById("totalQtyKpi"), avgQtyKpi: document.getElementById("avgQtyKpi"), machineCountKpi: document.getElementById("machineCountKpi"),
+      };
+
+      function setStatus(text, error = false) { els.status.textContent = text; els.status.style.color = error ? "#dc2626" : "#475569"; }
+      function fillSelect(selectEl, items, placeholder) { selectEl.innerHTML = (placeholder ? `<option value="">${placeholder}</option>` : "") + items.map((v) => `<option value="${v}">${v}</option>`).join(""); }
+
+      function renderProductsByMachine() {
+        const machine = els.machine.value;
+        const products = machine ? (state.options.productsByMachine[machine] || []) : state.options.products;
+        fillSelect(els.productName, products, "-- เลือกผลิตภัณฑ์ --");
+      }
+
+      async function loadDropdownOptions() {
+        const url = new URL(state.endpoint); url.searchParams.set("action", "options");
+        const res = await fetch(url); if (!res.ok) throw new Error("โหลด dropdown ไม่สำเร็จ");
+        const data = await res.json();
+        state.options.machines = Array.isArray(data.machines) ? data.machines : [];
+        state.options.products = Array.isArray(data.products) ? data.products : [];
+        state.options.productsByMachine = data.productsByMachine || {};
+        fillSelect(els.machine, state.options.machines, "-- เลือกเครื่องจักร --");
+        renderProductsByMachine();
+      }
+
+      function renderSummary() {
+        const records = state.records;
+        const totalQty = records.reduce((s, r) => s + Number(r.productionQty || r.totalCount || 0), 0);
+        const machineCount = new Set(records.map((r) => r.machine).filter(Boolean)).size;
+        els.recordsKpi.textContent = String(records.length);
+        els.totalQtyKpi.textContent = String(totalQty);
+        els.avgQtyKpi.textContent = records.length ? (totalQty / records.length).toFixed(2) : "0";
+        els.machineCountKpi.textContent = String(machineCount);
+      }
+
+      function renderTable() {
+        if (!state.records.length) {
+          els.recordsBody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#64748b">ยังไม่มีข้อมูล</td></tr>';
+          renderSummary();
+          return;
+        }
+        els.recordsBody.innerHTML = state.records.slice(0, 50).map((r) =>
+          `<tr><td>${r.date || ""}</td><td>${r.timeSlot || ""}</td><td>${r.machine || ""}</td><td>${r.productName || ""}</td><td>${r.productionQty || r.totalCount || 0}</td><td>${r.shift || ""}</td></tr>`
+        ).join("");
+        renderSummary();
+      }
+
+      async function loadRecords() {
+        const url = new URL(state.endpoint); url.searchParams.set("action", "list");
+        const res = await fetch(url); if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+        const data = await res.json();
+        state.records = Array.isArray(data.records) ? data.records : [];
+        renderTable();
+        setStatus(`โหลดข้อมูลสำเร็จ ${state.records.length} รายการ`);
+      }
+
+      async function createRecord(payload) {
+        const body = new URLSearchParams({ action: "create", ...payload });
+        const res = await fetch(state.endpoint, {
+          method: "POST",
+          body,
+        });
+        if (!res.ok) throw new Error("บันทึกข้อมูลไม่สำเร็จ");
+        await loadRecords();
+      }
+
+      function getPayload(form) {
+        const p = Object.fromEntries(new FormData(form).entries());
+        p.productionQty = Number(p.productionQty || 0);
+        if (p.productionQty < 0) throw new Error("ยอดผลิตต้องไม่ติดลบ");
+        return p;
+      }
+
+      document.getElementById("date").valueAsDate = new Date();
+      fillSelect(els.timeSlot, TIME_SLOTS, "");
+      els.machine.addEventListener("change", renderProductsByMachine);
+      els.syncOptionsBtn.addEventListener("click", async () => { try { await loadDropdownOptions(); setStatus("รีเฟรช dropdown สำเร็จ"); } catch (e) { setStatus(e.message, true); } });
+      els.loadBtn.addEventListener("click", async () => { try { await loadRecords(); } catch (e) { setStatus(e.message, true); } });
+      els.form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+          await createRecord(getPayload(event.currentTarget));
+          event.currentTarget.reset();
+          document.getElementById("date").valueAsDate = new Date();
+          fillSelect(els.timeSlot, TIME_SLOTS, "");
+          renderProductsByMachine();
+          setStatus("บันทึกข้อมูลสำเร็จ");
+        } catch (e) {
+          setStatus(e.message, true);
+        }
+      });
+
+      (async function init() {
+        if (!localStorage.getItem(API_URL_KEY)) setStatus("กำลังใช้ endpoint เริ่มต้นจากระบบ");
+        try { await loadDropdownOptions(); } catch (e) { setStatus(e.message, true); }
+        renderTable();
+      })();
+    </script>
+  </body>
+</html>

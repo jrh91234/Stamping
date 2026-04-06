@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OEE Admin Panel</title>
+    <style>
+      :root { --bg:#f8fafc; --surface:#fff; --text:#0f172a; --muted:#475569; --border:#e2e8f0; --primary:#2563eb; }
+      * { box-sizing: border-box; }
+      body { margin:0; background:var(--bg); color:var(--text); font-family:"Segoe UI",sans-serif; }
+      .container { max-width:900px; margin:0 auto; padding:24px; }
+      .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:14px; }
+      input, button, textarea { font:inherit; }
+      input, textarea { width:100%; border:1px solid var(--border); border-radius:8px; padding:10px; }
+      button { border:1px solid transparent; border-radius:8px; padding:10px 14px; cursor:pointer; }
+      .btn-primary { background:var(--primary); color:#fff; }
+      .btn-secondary { border-color:var(--border); background:#fff; }
+      .actions { display:flex; gap:8px; margin-top:10px; }
+      .helper { color:var(--muted); font-size:13px; margin-top:8px; }
+      .status { color:var(--muted); font-size:13px; }
+      pre { margin:0; background:#0f172a; color:#e2e8f0; border-radius:10px; padding:12px; overflow:auto; font-size:12px; }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <h1 style="margin-top:0">Admin Panel</h1>
+      <p class="helper">หน้านี้ใช้จัดการค่าระบบ เช่น URL ของ Google Apps Script Web App (ตั้งค่าเริ่มต้นให้แล้ว)</p>
+
+      <section class="card">
+        <h2 style="margin-top:0">ตั้งค่า Endpoint</h2>
+        <label for="apiUrl">Google Apps Script Web App URL</label>
+        <input id="apiUrl" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+        <div class="actions">
+          <button class="btn-primary" id="saveBtn">บันทึก URL</button>
+          <button class="btn-secondary" id="clearBtn">ล้างค่า URL</button>
+          <a href="index.html" style="align-self:center;text-decoration:none">กลับหน้า Dashboard</a>
+        </div>
+        <p id="status" class="status">พร้อมใช้งาน</p>
+      </section>
+
+      <section class="card">
+        <h2 style="margin-top:0">Sheet Header ที่แนะนำ</h2>
+        <textarea rows="2" readonly>date,shift,line,machine,plannedMinutes,downtimeMinutes,totalCount,goodCount,idealCycleTime,notes</textarea>
+      </section>
+
+      <section class="card">
+        <h2 style="margin-top:0">ตัวอย่าง Backend (ดูไฟล์ <code>scr/backend.gs</code>)</h2>
+        <pre id="gsPreview"></pre>
+      </section>
+    </main>
+
+    <script>
+      const API_URL_KEY = "oee_api_url";
+      const DEFAULT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxT-lGycpT-sR7MK6U2Vns05C2MVzoUIIDtjpves4GVFfFQWc25wZaqCI96DCG3WcsU/exec";
+      const els = {
+        apiUrl: document.getElementById("apiUrl"),
+        saveBtn: document.getElementById("saveBtn"),
+        clearBtn: document.getElementById("clearBtn"),
+        status: document.getElementById("status"),
+        gsPreview: document.getElementById("gsPreview"),
+      };
+
+      const previewScript = `ดูโค้ดเต็มในไฟล์ scr/backend.gs
+
+วิธีใช้งานย่อ:
+1) สร้างชีท products_master พร้อมคอลัมน์ product_name, part_no, machine
+2) วางโค้ด backend.gs ใน Apps Script
+3) Deploy as Web App
+4) นำ URL มาใส่ในหน้านี้
+5) Dashboard จะเรียก action=options/create/list
+6) หน้าเว็บส่ง POST แบบ form-urlencoded เพื่อลดปัญหา CORS preflight`;
+
+      function setStatus(text, error = false) {
+        els.status.textContent = text;
+        els.status.style.color = error ? "#dc2626" : "#475569";
+      }
+
+      function init() {
+        els.apiUrl.value = localStorage.getItem(API_URL_KEY) || DEFAULT_ENDPOINT;
+        els.gsPreview.textContent = previewScript;
+      }
+
+      els.saveBtn.addEventListener("click", () => {
+        const url = els.apiUrl.value.trim();
+        if (!url) {
+          setStatus("กรุณาใส่ URL endpoint", true);
+          return;
+        }
+        localStorage.setItem(API_URL_KEY, url);
+        setStatus("บันทึก URL สำเร็จ");
+      });
+
+      els.clearBtn.addEventListener("click", () => {
+        localStorage.removeItem(API_URL_KEY);
+        els.apiUrl.value = "";
+        setStatus("ล้างค่า URL แล้ว");
+      });
+
+      init();
+    </script>
+  </body>
+</html>
