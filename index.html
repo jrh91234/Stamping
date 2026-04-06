@@ -1,1 +1,247 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OEE Dashboard</title>
+    <style>
+      :root { --bg:#f8fafc; --surface:#fff; --text:#0f172a; --muted:#475569; --border:#e2e8f0; --primary:#2563eb; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+      .container { max-width: 1150px; margin: 0 auto; padding: 24px; }
+      .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+      .topbar a { color: var(--primary); text-decoration: none; }
+      .status { font-size: 13px; color: var(--muted); }
+      .layout { display:grid; grid-template-columns:1.1fr 1fr; gap:16px; }
+      .card { background: var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
+      .helper { color: var(--muted); font-size: 12px; }
+      form { display:grid; grid-template-columns:repeat(2, 1fr); gap:10px; }
+      .field { display:flex; flex-direction:column; gap:6px; }
+      .field.full { grid-column: span 2; }
+      label { color: var(--muted); font-size:12px; }
+      input, select, textarea, button { font:inherit; }
+      input, select, textarea { border:1px solid var(--border); border-radius:8px; padding:9px 10px; }
+      textarea { min-height:72px; }
+      .actions { display:flex; gap:8px; grid-column: span 2; }
+      button { border:1px solid transparent; border-radius:8px; padding:10px 14px; cursor:pointer; }
+      .btn-primary { background: var(--primary); color:#fff; }
+      .btn-secondary { border-color: var(--border); background:#fff; }
+      .kpis { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-top:8px; }
+      .kpi { border:1px solid var(--border); border-radius:10px; padding:10px; }
+      .kpi .label { color: var(--muted); font-size:12px; }
+      .kpi .value { font-size:24px; font-weight:700; margin-top:4px; }
+      table { width:100%; border-collapse:collapse; }
+      th, td { border-bottom:1px solid var(--border); padding:8px 6px; font-size:13px; text-align:left; }
+      th { color: var(--muted); }
+      @media (max-width:980px) { .layout { grid-template-columns:1fr; } .kpis { grid-template-columns:repeat(2,1fr);} }
+      @media (max-width:640px) { form { grid-template-columns:1fr; } .field.full,.actions { grid-column:auto; } .kpis { grid-template-columns:1fr; } }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <section class="topbar">
+        <div>
+          <h1 style="margin:0">OEE Dashboard</h1>
+          <div class="helper">กรอกข้อมูลการผลิต และคำนวณ OEE จาก Google Sheets</div>
+        </div>
+        <a href="admin.html">ไปหน้า Admin Panel</a>
+      </section>
 
+      <div id="status" class="status">พร้อมใช้งาน</div>
+
+      <section class="layout" style="margin-top: 10px">
+        <article class="card">
+          <h2 style="margin-top:0">บันทึกข้อมูลผลิต</h2>
+          <p class="helper">Dropdown เครื่องจักร/ชื่อผลิตภัณฑ์ จะดึงจาก Google Sheet</p>
+          <form id="oeeForm">
+            <div class="field"><label for="date">วันที่</label><input id="date" name="date" type="date" required /></div>
+            <div class="field"><label for="shift">กะ</label><select id="shift" name="shift" required><option value="Day">Day</option><option value="Night">Night</option></select></div>
+
+            <div class="field"><label for="machine">เครื่องจักร</label><select id="machine" name="machine" required><option value="">-- เลือกเครื่องจักร --</option></select></div>
+            <div class="field"><label for="productName">ชื่อผลิตภัณฑ์</label><select id="productName" name="productName" required><option value="">-- เลือกผลิตภัณฑ์ --</option></select></div>
+
+            <div class="field"><label for="line">Line</label><input id="line" name="line" placeholder="Line A" required /></div>
+            <div class="field"><label for="productionQty">ยอดผลิต</label><input id="productionQty" name="productionQty" type="number" min="0" required /></div>
+
+            <div class="field"><label for="plannedMinutes">Planned Time (min)</label><input id="plannedMinutes" name="plannedMinutes" type="number" min="1" required /></div>
+            <div class="field"><label for="downtimeMinutes">Downtime (min)</label><input id="downtimeMinutes" name="downtimeMinutes" type="number" min="0" required /></div>
+
+            <div class="field"><label for="goodCount">Good Count</label><input id="goodCount" name="goodCount" type="number" min="0" required /></div>
+            <div class="field"><label for="idealCycleTime">Ideal Cycle Time (min/pc)</label><input id="idealCycleTime" name="idealCycleTime" type="number" min="0" step="0.0001" required /></div>
+
+            <div class="field full"><label for="notes">หมายเหตุ</label><textarea id="notes" name="notes"></textarea></div>
+            <div class="actions">
+              <button type="submit" class="btn-primary">บันทึกข้อมูล</button>
+              <button type="button" class="btn-secondary" id="loadBtn">โหลดข้อมูลล่าสุด</button>
+              <button type="button" class="btn-secondary" id="syncOptionsBtn">รีเฟรช Dropdown</button>
+            </div>
+          </form>
+        </article>
+
+        <article class="card">
+          <h2 style="margin-top:0">KPI (Average)</h2>
+          <div class="kpis">
+            <div class="kpi"><div class="label">Availability</div><div class="value" id="availabilityKpi">0.00%</div></div>
+            <div class="kpi"><div class="label">Performance</div><div class="value" id="performanceKpi">0.00%</div></div>
+            <div class="kpi"><div class="label">Quality</div><div class="value" id="qualityKpi">0.00%</div></div>
+            <div class="kpi"><div class="label">OEE</div><div class="value" id="oeeKpi">0.00%</div></div>
+          </div>
+
+          <h3 style="margin:14px 0 8px">ข้อมูลล่าสุด</h3>
+          <div style="overflow:auto">
+            <table>
+              <thead><tr><th>Date</th><th>Machine</th><th>Product</th><th>Qty</th><th>A</th><th>P</th><th>Q</th><th>OEE</th></tr></thead>
+              <tbody id="recordsBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const API_URL_KEY = "oee_api_url";
+      const DEFAULT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxT-lGycpT-sR7MK6U2Vns05C2MVzoUIIDtjpves4GVFfFQWc25wZaqCI96DCG3WcsU/exec";
+      const state = {
+        endpoint: localStorage.getItem(API_URL_KEY) || DEFAULT_ENDPOINT,
+        records: [],
+        options: { machines: [], products: [], productsByMachine: {} },
+      };
+
+      const els = {
+        status: document.getElementById("status"),
+        oeeForm: document.getElementById("oeeForm"),
+        loadBtn: document.getElementById("loadBtn"),
+        syncOptionsBtn: document.getElementById("syncOptionsBtn"),
+        machine: document.getElementById("machine"),
+        productName: document.getElementById("productName"),
+        recordsBody: document.getElementById("recordsBody"),
+        availabilityKpi: document.getElementById("availabilityKpi"),
+        performanceKpi: document.getElementById("performanceKpi"),
+        qualityKpi: document.getElementById("qualityKpi"),
+        oeeKpi: document.getElementById("oeeKpi"),
+      };
+
+      const percent = (v) => `${(Number(v || 0) * 100).toFixed(2)}%`;
+      const divide = (n, d) => (Number(d) ? Number(n) / Number(d) : 0);
+      function setStatus(text, error = false) {
+        els.status.textContent = text;
+        els.status.style.color = error ? "#dc2626" : "#475569";
+      }
+
+      function calc(row) {
+        const totalCount = Number(row.totalCount ?? row.productionQty ?? 0);
+        const runTime = Number(row.plannedMinutes) - Number(row.downtimeMinutes);
+        const a = divide(runTime, row.plannedMinutes);
+        const p = divide(Number(row.idealCycleTime) * totalCount, runTime);
+        const q = divide(row.goodCount, totalCount);
+        return { a, p, q, oee: a * p * q, totalCount };
+      }
+
+      function fillSelect(selectEl, items, placeholder) {
+        selectEl.innerHTML = `<option value="">${placeholder}</option>` + items.map((v) => `<option value="${v}">${v}</option>`).join("");
+      }
+
+      function renderProductsByMachine() {
+        const machine = els.machine.value;
+        const products = machine
+          ? (state.options.productsByMachine[machine] || [])
+          : state.options.products;
+        fillSelect(els.productName, products, "-- เลือกผลิตภัณฑ์ --");
+      }
+
+      async function loadDropdownOptions() {
+        if (!state.endpoint) throw new Error("ยังไม่ได้ตั้งค่า endpoint");
+        setStatus("กำลังโหลด dropdown list...");
+        const url = new URL(state.endpoint);
+        url.searchParams.set("action", "options");
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("โหลด dropdown list ไม่สำเร็จ");
+        const data = await res.json();
+        state.options.machines = Array.isArray(data.machines) ? data.machines : [];
+        state.options.products = Array.isArray(data.products) ? data.products : [];
+        state.options.productsByMachine = data.productsByMachine || {};
+
+        fillSelect(els.machine, state.options.machines, "-- เลือกเครื่องจักร --");
+        renderProductsByMachine();
+        setStatus(`โหลด dropdown สำเร็จ (${state.options.machines.length} เครื่องจักร)`);
+      }
+
+      function render() {
+        if (!state.records.length) {
+          els.recordsBody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:#64748b">ยังไม่มีข้อมูล</td></tr>';
+          [els.availabilityKpi, els.performanceKpi, els.qualityKpi, els.oeeKpi].forEach((el) => (el.textContent = "0.00%"));
+          return;
+        }
+
+        const sum = { a: 0, p: 0, q: 0, oee: 0 };
+        els.recordsBody.innerHTML = state.records.slice(0, 30).map((row) => {
+          const k = calc(row);
+          sum.a += k.a; sum.p += k.p; sum.q += k.q; sum.oee += k.oee;
+          return `<tr><td>${row.date || ""}</td><td>${row.machine || ""}</td><td>${row.productName || ""}</td><td>${k.totalCount}</td><td>${percent(k.a)}</td><td>${percent(k.p)}</td><td>${percent(k.q)}</td><td>${percent(k.oee)}</td></tr>`;
+        }).join("");
+
+        const n = state.records.length;
+        els.availabilityKpi.textContent = percent(sum.a / n);
+        els.performanceKpi.textContent = percent(sum.p / n);
+        els.qualityKpi.textContent = percent(sum.q / n);
+        els.oeeKpi.textContent = percent(sum.oee / n);
+      }
+
+      async function loadRecords() {
+        if (!state.endpoint) throw new Error("ยังไม่ได้ตั้งค่า endpoint กรุณาไปที่ Admin Panel");
+        setStatus("กำลังโหลดข้อมูล...");
+        const url = new URL(state.endpoint);
+        url.searchParams.set("action", "list");
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("โหลดข้อมูลไม่สำเร็จ");
+        const data = await res.json();
+        state.records = Array.isArray(data.records) ? data.records : [];
+        render();
+        setStatus(`โหลดข้อมูลสำเร็จ ${state.records.length} รายการ`);
+      }
+
+      async function createRecord(payload) {
+        if (!state.endpoint) throw new Error("ยังไม่ได้ตั้งค่า endpoint กรุณาไปที่ Admin Panel");
+        setStatus("กำลังบันทึกข้อมูล...");
+        const res = await fetch(state.endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "create", ...payload }),
+        });
+        if (!res.ok) throw new Error("บันทึกข้อมูลไม่สำเร็จ");
+        await loadRecords();
+        setStatus("บันทึกข้อมูลสำเร็จ");
+      }
+
+      function formPayload(form) {
+        const p = Object.fromEntries(new FormData(form).entries());
+        ["plannedMinutes", "downtimeMinutes", "productionQty", "goodCount", "idealCycleTime"].forEach((k) => (p[k] = Number(p[k] || 0)));
+        p.totalCount = p.productionQty;
+        if (p.goodCount > p.productionQty) throw new Error("Good Count ต้องไม่มากกว่า ยอดผลิต");
+        return p;
+      }
+
+      document.getElementById("date").valueAsDate = new Date();
+      els.machine.addEventListener("change", renderProductsByMachine);
+      els.syncOptionsBtn.addEventListener("click", async () => { try { await loadDropdownOptions(); } catch (e) { setStatus(e.message, true); } });
+      els.loadBtn.addEventListener("click", async () => { try { await loadRecords(); } catch (e) { setStatus(e.message, true); } });
+      els.oeeForm.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+          await createRecord(formPayload(event.currentTarget));
+          event.currentTarget.reset();
+          document.getElementById("date").valueAsDate = new Date();
+          renderProductsByMachine();
+        } catch (e) {
+          setStatus(e.message, true);
+        }
+      });
+
+      (async function init() {
+        if (!localStorage.getItem(API_URL_KEY)) setStatus("กำลังใช้ endpoint เริ่มต้นจากระบบ");
+        try { await loadDropdownOptions(); } catch (e) { setStatus(e.message, true); }
+        render();
+      })();
+    </script>
+  </body>
+</html>
