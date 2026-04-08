@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="th">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>บันทึกข้อมูลผลิต</title>
+    <style>
+      :root { --bg:#f8fafc; --surface:#fff; --text:#0f172a; --muted:#475569; --border:#e2e8f0; --primary:#2563eb; }
+      * { box-sizing: border-box; }
+      body { margin: 0; font-family: "Segoe UI", sans-serif; background: var(--bg); color: var(--text); }
+      .container { max-width: 800px; margin: 0 auto; padding: 24px; }
+      .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; }
+      .topbar a { color: var(--primary); text-decoration: none; }
+      .status { font-size:13px; color:var(--muted); }
+      .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:20px; }
+      .helper { color: var(--muted); font-size:12px; margin-bottom: 16px; }
+      form { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; }
+      .field { display:flex; flex-direction:column; gap:6px; }
+      .field.full { grid-column: span 2; }
+      label { color:var(--muted); font-size:12px; font-weight: 500; }
+      input, select, textarea, button { font:inherit; }
+      input, select, textarea { border:1px solid var(--border); border-radius:8px; padding:10px; }
+      textarea { min-height:100px; resize: vertical; }
+      .actions { display:flex; gap:8px; grid-column:span 2; flex-wrap: wrap; }
+      button { border:1px solid transparent; border-radius:8px; padding:10px 14px; cursor:pointer; font-weight: 500; transition: all 0.2s; }
+      .btn-primary { background: var(--primary); color:#fff; }
+      .btn-primary:hover { opacity: 0.9; }
+      .btn-secondary { border-color: var(--border); background:#fff; }
+      .btn-secondary:hover { background: var(--bg); }
+      .message { padding: 10px 12px; border-radius: 8px; font-size: 13px; margin-bottom: 12px; }
+      .message.success { background: #dcfce7; color: #166534; }
+      .message.error { background: #fee2e2; color: #991b1b; }
+      @media (max-width:640px) { form { grid-template-columns:1fr; } .field.full,.actions { grid-column:auto; } }
+    </style>
+  </head>
+  <body>
+    <main class="container">
+      <section class="topbar">
+        <div>
+          <h1 style="margin:0">บันทึกข้อมูลผลิต</h1>
+          <div class="helper">กรอกข้อมูลการผลิตจาก Google Sheets</div>
+        </div>
+        <a href="index.html">ไปหน้า Dashboard</a>
+      </section>
+
+      <section class="card">
+        <div id="message"></div>
+        <p class="helper">Dropdown เครื่องจักร/ชื่อผลิตภัณฑ์ดึงจาก Google Sheet</p>
+        <form id="form">
+          <div class="field"><label for="date">วันที่</label><input id="date" name="date" type="date" required /></div>
+          <div class="field"><label for="shift">กะ</label><select id="shift" name="shift" required><option value="Day">Day</option><option value="Night">Night</option></select></div>
+          <div class="field"><label for="timeSlot">ช่วงเวลา</label><select id="timeSlot" name="timeSlot" required></select></div>
+          <div class="field"><label for="line">Line</label><input id="line" name="line" placeholder="Line A" required /></div>
+          <div class="field"><label for="machine">เครื่องจักร</label><select id="machine" name="machine" required><option value="">-- เลือกเครื่องจักร --</option></select></div>
+          <div class="field"><label for="productName">ชื่อผลิตภัณฑ์</label><select id="productName" name="productName" required><option value="">-- เลือกผลิตภัณฑ์ --</option></select></div>
+          <div class="field"><label for="productionQty">ยอดผลิต</label><input id="productionQty" name="productionQty" type="number" min="0" required /></div>
+          <div class="field full"><label for="notes">หมายเหตุ</label><textarea id="notes" name="notes"></textarea></div>
+          <div class="actions">
+            <button type="submit" class="btn-primary">บันทึกข้อมูล</button>
+            <button type="button" class="btn-secondary" id="syncOptionsBtn">รีเฟรช Dropdown</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script>
+      const API_URL_KEY = "oee_api_url";
+      const DEFAULT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxT-lGycpT-sR7MK6U2Vns05C2MVzoUIIDtjpves4GVFfFQWc25wZaqCI96DCG3WcsU/exec";
+      const TIME_SLOTS = [
+        "08:00-09:00","09:00-10:00","10:00-11:00","11:00-12:00","12:00-13:00","13:00-14:00",
+        "14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00 OT","18:00-19:00 OT","19:00-20:00 OT",
+        "20:00-21:00","21:00-22:00","22:00-23:00","23:00-00:00","00:00-01:00","01:00-02:00",
+        "02:00-03:00","04:00-05:00","05:00-06:00 OT","06:00-07:00 OT","07:00-08:00 OT"
+      ];
+
+      const state = { endpoint: localStorage.getItem(API_URL_KEY) || DEFAULT_ENDPOINT, options: { machines: [], products: [], productsByMachine: {} } };
+      const els = {
+        form: document.getElementById("form"), syncOptionsBtn: document.getElementById("syncOptionsBtn"), 
+        machine: document.getElementById("machine"), productName: document.getElementById("productName"),
+        timeSlot: document.getElementById("timeSlot"), message: document.getElementById("message"),
+      };
+
+      function showMessage(text, type = "success") {
+        els.message.innerHTML = `<div class="message ${type}">${text}</div>`;
+        setTimeout(() => { els.message.innerHTML = ""; }, 5000);
+      }
+
+      function fillSelect(selectEl, items, placeholder) { 
+        selectEl.innerHTML = (placeholder ? `<option value="">${placeholder}</option>` : "") + items.map((v) => `<option value="${v}">${v}</option>`).join(""); 
+      }
+
+      function renderProductsByMachine() {
+        const machine = els.machine.value;
+        const products = machine ? (state.options.productsByMachine[machine] || []) : state.options.products;
+        fillSelect(els.productName, products, "-- เลือกผลิตภัณฑ์ --");
+      }
+
+      async function loadDropdownOptions() {
+        const url = new URL(state.endpoint); url.searchParams.set("action", "options");
+        const res = await fetch(url); if (!res.ok) throw new Error("โหลด dropdown ไม่สำเร็จ");
+        const data = await res.json();
+        state.options.machines = Array.isArray(data.machines) ? data.machines : [];
+        state.options.products = Array.isArray(data.products) ? data.products : [];
+        state.options.productsByMachine = data.productsByMachine || {};
+        fillSelect(els.machine, state.options.machines, "-- เลือกเครื่องจักร --");
+        renderProductsByMachine();
+      }
+
+      async function createRecord(payload) {
+        const body = new URLSearchParams({ action: "create", ...payload });
+        const res = await fetch(state.endpoint, {
+          method: "POST",
+          body,
+        });
+        if (!res.ok) throw new Error("บันทึกข้อมูลไม่สำเร็จ");
+      }
+
+      function getPayload(form) {
+        const p = Object.fromEntries(new FormData(form).entries());
+        p.productionQty = Number(p.productionQty || 0);
+        if (p.productionQty < 0) throw new Error("ยอดผลิตต้องไม่ติดลบ");
+        return p;
+      }
+
+      document.getElementById("date").valueAsDate = new Date();
+      fillSelect(els.timeSlot, TIME_SLOTS, "");
+      els.machine.addEventListener("change", renderProductsByMachine);
+      els.syncOptionsBtn.addEventListener("click", async () => { 
+        try { 
+          await loadDropdownOptions(); 
+          showMessage("รีเฟรช dropdown สำเร็จ", "success"); 
+        } catch (e) { 
+          showMessage(e.message, "error"); 
+        } 
+      });
+      els.form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        try {
+          await createRecord(getPayload(event.currentTarget));
+          event.currentTarget.reset();
+          document.getElementById("date").valueAsDate = new Date();
+          fillSelect(els.timeSlot, TIME_SLOTS, "");
+          renderProductsByMachine();
+          showMessage("บันทึกข้อมูลสำเร็จ", "success");
+        } catch (e) {
+          showMessage(e.message, "error");
+        }
+      });
+
+      (async function init() {
+        try { 
+          await loadDropdownOptions(); 
+        } catch (e) { 
+          showMessage(e.message, "error"); 
+        }
+      })();
+    </script>
+  </body>
+</html>

@@ -12,7 +12,7 @@
       .topbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; }
       .topbar a { color: var(--primary); text-decoration: none; }
       .status { font-size:13px; color:var(--muted); }
-      .layout { display:grid; grid-template-columns:1.1fr 1fr; gap:16px; }
+
       .card { background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:16px; }
       .helper { color: var(--muted); font-size:12px; }
       form { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
@@ -42,34 +42,17 @@
       <section class="topbar">
         <div>
           <h1 style="margin:0">Production Dashboard</h1>
-          <div class="helper">บันทึกข้อมูลการผลิตจาก Google Sheets</div>
+          <div class="helper">ข้อมูลสรุปการผลิต</div>
         </div>
-        <a href="admin.html">ไปหน้า Admin Panel</a>
+        <div style="display:flex; gap:12px;">
+          <a href="form.html">ไปหน้า บันทึกข้อมูล</a>
+          <a href="admin.html">ไปหน้า Admin Panel</a>
+        </div>
       </section>
 
       <div id="status" class="status">พร้อมใช้งาน</div>
 
-      <section class="layout" style="margin-top: 10px">
-        <article class="card">
-          <h2 style="margin-top:0">บันทึกข้อมูลผลิต</h2>
-          <p class="helper">Dropdown เครื่องจักร/ชื่อผลิตภัณฑ์ดึงจาก Google Sheet</p>
-          <form id="form">
-            <div class="field"><label for="date">วันที่</label><input id="date" name="date" type="date" required /></div>
-            <div class="field"><label for="shift">กะ</label><select id="shift" name="shift" required><option value="Day">Day</option><option value="Night">Night</option></select></div>
-            <div class="field"><label for="timeSlot">ช่วงเวลา</label><select id="timeSlot" name="timeSlot" required></select></div>
-            <div class="field"><label for="line">Line</label><input id="line" name="line" placeholder="Line A" required /></div>
-            <div class="field"><label for="machine">เครื่องจักร</label><select id="machine" name="machine" required><option value="">-- เลือกเครื่องจักร --</option></select></div>
-            <div class="field"><label for="productName">ชื่อผลิตภัณฑ์</label><select id="productName" name="productName" required><option value="">-- เลือกผลิตภัณฑ์ --</option></select></div>
-            <div class="field"><label for="productionQty">ยอดผลิต</label><input id="productionQty" name="productionQty" type="number" min="0" required /></div>
-            <div class="field full"><label for="notes">หมายเหตุ</label><textarea id="notes" name="notes"></textarea></div>
-            <div class="actions">
-              <button type="submit" class="btn-primary">บันทึกข้อมูล</button>
-              <button type="button" class="btn-secondary" id="loadBtn">โหลดข้อมูลล่าสุด</button>
-              <button type="button" class="btn-secondary" id="syncOptionsBtn">รีเฟรช Dropdown</button>
-            </div>
-          </form>
-        </article>
-
+      <section style="margin-top: 10px">
         <article class="card">
           <h2 style="margin-top:0">Summary</h2>
           <div class="kpis">
@@ -86,6 +69,9 @@
               <tbody id="recordsBody"></tbody>
             </table>
           </div>
+          <div style="margin-top:12px;">
+            <button type="button" class="btn-secondary" id="loadBtn">โหลดข้อมูลล่าสุด</button>
+          </div>
         </article>
       </section>
     </main>
@@ -93,40 +79,16 @@
     <script>
       const API_URL_KEY = "oee_api_url";
       const DEFAULT_ENDPOINT = "https://script.google.com/macros/s/AKfycbxT-lGycpT-sR7MK6U2Vns05C2MVzoUIIDtjpves4GVFfFQWc25wZaqCI96DCG3WcsU/exec";
-      const TIME_SLOTS = [
-        "08:00-09:00","09:00-10:00","10:00-11:00","11:00-12:00","12:00-13:00","13:00-14:00",
-        "14:00-15:00","15:00-16:00","16:00-17:00","17:00-18:00 OT","18:00-19:00 OT","19:00-20:00 OT",
-        "20:00-21:00","21:00-22:00","22:00-23:00","23:00-00:00","00:00-01:00","01:00-02:00",
-        "02:00-03:00","04:00-05:00","05:00-06:00 OT","06:00-07:00 OT","07:00-08:00 OT"
-      ];
 
-      const state = { endpoint: localStorage.getItem(API_URL_KEY) || DEFAULT_ENDPOINT, records: [], options: { machines: [], products: [], productsByMachine: {} } };
+
+      const state = { endpoint: localStorage.getItem(API_URL_KEY) || DEFAULT_ENDPOINT, records: [] };
       const els = {
-        status: document.getElementById("status"), form: document.getElementById("form"), loadBtn: document.getElementById("loadBtn"),
-        syncOptionsBtn: document.getElementById("syncOptionsBtn"), machine: document.getElementById("machine"), productName: document.getElementById("productName"),
-        timeSlot: document.getElementById("timeSlot"), recordsBody: document.getElementById("recordsBody"),
+        status: document.getElementById("status"), loadBtn: document.getElementById("loadBtn"),
+        recordsBody: document.getElementById("recordsBody"),
         recordsKpi: document.getElementById("recordsKpi"), totalQtyKpi: document.getElementById("totalQtyKpi"), avgQtyKpi: document.getElementById("avgQtyKpi"), machineCountKpi: document.getElementById("machineCountKpi"),
       };
 
       function setStatus(text, error = false) { els.status.textContent = text; els.status.style.color = error ? "#dc2626" : "#475569"; }
-      function fillSelect(selectEl, items, placeholder) { selectEl.innerHTML = (placeholder ? `<option value="">${placeholder}</option>` : "") + items.map((v) => `<option value="${v}">${v}</option>`).join(""); }
-
-      function renderProductsByMachine() {
-        const machine = els.machine.value;
-        const products = machine ? (state.options.productsByMachine[machine] || []) : state.options.products;
-        fillSelect(els.productName, products, "-- เลือกผลิตภัณฑ์ --");
-      }
-
-      async function loadDropdownOptions() {
-        const url = new URL(state.endpoint); url.searchParams.set("action", "options");
-        const res = await fetch(url); if (!res.ok) throw new Error("โหลด dropdown ไม่สำเร็จ");
-        const data = await res.json();
-        state.options.machines = Array.isArray(data.machines) ? data.machines : [];
-        state.options.products = Array.isArray(data.products) ? data.products : [];
-        state.options.productsByMachine = data.productsByMachine || {};
-        fillSelect(els.machine, state.options.machines, "-- เลือกเครื่องจักร --");
-        renderProductsByMachine();
-      }
 
       function renderSummary() {
         const records = state.records;
@@ -183,23 +145,9 @@
       els.loadBtn.addEventListener("click", async () => { try { await loadRecords(); } catch (e) { setStatus(e.message, true); } });
       els.form.addEventListener("submit", async (event) => {
         event.preventDefault();
-        try {
-          await createRecord(getPayload(event.currentTarget));
-          event.currentTarget.reset();
-          document.getElementById("date").valueAsDate = new Date();
-          fillSelect(els.timeSlot, TIME_SLOTS, "");
-          renderProductsByMachine();
-          setStatus("บันทึกข้อมูลสำเร็จ");
-        } catch (e) {
-          setStatus(e.message, true);
-        }
-      });
+ renderTable();
+      })();
+    </els.loadBtn.addEventListener("click", async () => { try { await loadRecords(); } catch (e) { setStatus(e.message, true); } });
 
       (async function init() {
         if (!localStorage.getItem(API_URL_KEY)) setStatus("กำลังใช้ endpoint เริ่มต้นจากระบบ");
-        try { await loadDropdownOptions(); } catch (e) { setStatus(e.message, true); }
-        renderTable();
-      })();
-    </script>
-  </body>
-</html>
